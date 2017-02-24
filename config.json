@@ -1,0 +1,9 @@
+{
+    "host": "",
+    "port": 8086,
+    "logpath": "/tmp/restrulmq.log",
+    "queues": [
+        {"path": "/jobstart", "capacity": 0},
+        {"path": "/jobfinish", "capacity": 1}
+    ]
+}
