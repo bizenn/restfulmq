@@ -45,7 +45,7 @@ func (q *channelQueue) Dequeue() *Entry {
 	return <-q.queue
 }
 
-func makeQueueHandler(queue Queue) func(http.ResponseWriter, *http.Request) {
+func makeQueueHandler(path string, queue Queue) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
@@ -53,12 +53,14 @@ func makeQueueHandler(queue Queue) func(http.ResponseWriter, *http.Request) {
 			if e != nil {
 				w.Header().Set("Content-Type", e.mediaType)
 				w.Write(e.data)
+				logrus.Infof("Dequeue %s to %s", path, r.RemoteAddr)
 			}
 		case http.MethodPost:
 			if b, err := ioutil.ReadAll(r.Body); err != nil {
 				http.Error(w, "Bad Request", http.StatusBadRequest)
 			} else {
 				queue.Enqueue(&Entry{r.Header.Get("Content-Type"), b})
+				logrus.Infof("Enqueue %s from %s", path, r.RemoteAddr)
 				w.WriteHeader(http.StatusAccepted)
 			}
 		default:
@@ -120,10 +122,15 @@ func init() {
 }
 
 func main() {
-	logrus.Info("Start")
+	host := fmt.Sprintf("%s:%d", config.Host, config.Port)
+	logrus.WithField("listen", host).Info("Start")
 	for _, qc := range config.Queues {
-		http.HandleFunc(qc.Path, makeQueueHandler(NewQueue(qc.Capacity)))
+		http.HandleFunc(qc.Path, makeQueueHandler(qc.Path, NewQueue(qc.Capacity)))
+		logrus.WithFields(logrus.Fields{
+			"path":     qc.Path,
+			"capacity": qc.Capacity,
+		}).Infof("Queue created")
 	}
-	http.ListenAndServe(fmt.Sprintf("%s:%d", config.Host, config.Port), nil)
+	http.ListenAndServe(host, nil)
 	logrus.Info("Finish")
 }
